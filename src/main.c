@@ -26,7 +26,7 @@ mruby_qrng_initialize(mrb_state *mrb, mrb_value self)
   QRNG_CALL(qrng_connect(RSTRING_PTR(username), RSTRING_PTR(password)));
   mrb_iv_set(mrb, self, sym_connected, mrb_true_value());
   if (!mrb_nil_p(block)) {
-    mrb_yield(mrb, block, self);  // does mruby have a rb_ensure counterpart?
+    mrb_yield(mrb, block, self);
     qrng_disconnect();
     mrb_iv_set(mrb, self, sym_connected, mrb_false_value());
   }
