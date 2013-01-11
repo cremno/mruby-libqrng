@@ -23,7 +23,7 @@ static mrb_value mruby_libqrng_disconnect();
   if (i != 0) { \
     mrb_raise(mrb, class_qrngerror, qrng_error_strings[i]); \
   } \
-} while (0);
+} while (0)
 
 #define QRNG_CALL2(f, p, n) do { \
   int received; \
@@ -35,7 +35,7 @@ static mrb_value mruby_libqrng_disconnect();
       mrb_raise(mrb, class_qrngerror, qrng_error_strings[i]); \
     } \
   } while (n != received); \
-} while (0);
+} while (0)
 
 static inline void
 check_length(mrb_state *mrb, mrb_int length, mrb_int max)
@@ -157,8 +157,7 @@ mruby_libqrng_data(mrb_state *mrb, mrb_value self)
     QRNG_CALL2(qrng_get_double_array, buf, size);
     data = mrb_ary_new_capa(mrb, size);
     for (in = 0; in < size; ++in) {
-      dn = ((double *)buf)[in];
-      mrb_ary_set(mrb, data, in, mrb_float_value(dn));
+      mrb_ary_set(mrb, data, in, mrb_float_value(((double *)buf)[in]));
     }
   } else {
     mrb_raise(mrb, E_TYPE_ERROR, "invalid QRNG data type");
@@ -169,7 +168,7 @@ mruby_libqrng_data(mrb_state *mrb, mrb_value self)
 }
 
 static mrb_value
-mruby_libqrng_generate_password(mrb_state *mrb, mrb_value self)
+mruby_libqrng_password(mrb_state *mrb, mrb_value self)
 {
   mrb_int length;
   mrb_value chars;
@@ -199,8 +198,8 @@ mrb_mruby_libqrng_gem_init(mrb_state* mrb)
   mrb_define_method(mrb, class_qrng, "ssl?", mruby_libqrng_ssl, ARGS_NONE());
   mrb_define_method(mrb, class_qrng, "data", mruby_libqrng_data, ARGS_REQ(1) | ARGS_OPT(1));
   mrb_define_method(mrb, class_qrng, "[]", mruby_libqrng_data, ARGS_REQ(1) | ARGS_OPT(1));
-  mrb_define_method(mrb, class_qrng, "generate_password", mruby_libqrng_generate_password, ARGS_REQ(1) | ARGS_OPT(1));
-  mrb_define_method(mrb, class_qrng, "password", mruby_libqrng_generate_password, ARGS_REQ(1) | ARGS_OPT(1));
+  mrb_define_method(mrb, class_qrng, "generate_password", mruby_libqrng_password, ARGS_REQ(1) | ARGS_OPT(1));
+  mrb_define_method(mrb, class_qrng, "password", mruby_libqrng_password, ARGS_REQ(1) | ARGS_OPT(1));
   sym_connected = mrb_intern(mrb, "connected");
   sym_ssl = mrb_intern(mrb, "ssl");
   sym_byte = mrb_intern(mrb, "byte");
