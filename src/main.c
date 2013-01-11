@@ -3,16 +3,15 @@
 #include <mruby/variable.h>
 #include <libQRNG.h>
 
-struct RClass *cQRNG;
-struct RClass *eQRNGError;
-
+struct RClass *class_qrng;
+struct RClass *class_qrngerror;
 mrb_sym sym_connected;
 
 #define QRNG_CALL(f) do { \
   int i; \
   i = f; \
   if (i != 0) { \
-    mrb_raise(mrb, eQRNGError, qrng_error_strings[i]); \
+    mrb_raise(mrb, class_qrngerror, qrng_error_strings[i]); \
   } \
 } while (0);
 
@@ -27,7 +26,7 @@ mruby_qrng_initialize(mrb_state *mrb, mrb_value self)
   QRNG_CALL(qrng_connect(RSTRING_PTR(username), RSTRING_PTR(password)));
   mrb_iv_set(mrb, self, sym_connected, mrb_true_value());
   if (!mrb_nil_p(block)) {
-    mrb_yield(mrb, block, self);
+    mrb_yield(mrb, block, self);  // does mruby have a rb_ensure counterpart?
     qrng_disconnect();
     mrb_iv_set(mrb, self, sym_connected, mrb_false_value());
   }
@@ -75,7 +74,7 @@ mruby_qrng_generate_password(mrb_state *mrb, mrb_value self)
 
   mrb_get_args(mrb, "Si", &chars, &length);
   if (length.value.i < 0 || length.value.i >= INT_MAX) {
-    mrb_raise(mrb, eQRNGError, "invalid length");
+    mrb_raise(mrb, class_qrngerror, "invalid length");
   }
   password = mrb_str_new(mrb, NULL, length.value.i);
   QRNG_CALL(qrng_generate_password(RSTRING_PTR(chars), RSTRING_PTR(password), length.value.i + 1));
@@ -86,13 +85,13 @@ mruby_qrng_generate_password(mrb_state *mrb, mrb_value self)
 void
 mrb_mruby_qrng_gem_init(mrb_state* mrb)
 {
-  cQRNG = mrb_define_class(mrb, "QRNG", mrb->object_class);
-  eQRNGError = mrb_define_class_under(mrb, cQRNG, "QRNGError", mrb->eStandardError_class);
-  mrb_define_const(mrb, cQRNG, "VERSION", mrb_str_new_cstr(mrb, qrng_libQRNG_version));
-  mrb_define_method(mrb, cQRNG, "initialize", mruby_qrng_initialize, ARGS_OPT(1));
-  mrb_define_method(mrb, cQRNG, "connect", mruby_qrng_connect, ARGS_REQ(2));
-  mrb_define_method(mrb, cQRNG, "disconnect", mruby_qrng_disconnect, ARGS_NONE());
-  mrb_define_method(mrb, cQRNG, "connected?", mruby_qrng_connected, ARGS_NONE());
-  mrb_define_method(mrb, cQRNG, "generate_password", mruby_qrng_generate_password, ARGS_REQ(2));
+  class_qrng = mrb_define_class(mrb, "QRNG", mrb->object_class);
+  class_qrngerror = mrb_define_class_under(mrb, class_qrng, "QRNGError", mrb->eStandardError_class);
+  mrb_define_const(mrb, class_qrng, "VERSION", mrb_str_new_cstr(mrb, qrng_libQRNG_version));
+  mrb_define_method(mrb, class_qrng, "initialize", mruby_qrng_initialize, ARGS_OPT(1));
+  mrb_define_method(mrb, class_qrng, "connect", mruby_qrng_connect, ARGS_REQ(2));
+  mrb_define_method(mrb, class_qrng, "disconnect", mruby_qrng_disconnect, ARGS_NONE());
+  mrb_define_method(mrb, class_qrng, "connected?", mruby_qrng_connected, ARGS_NONE());
+  mrb_define_method(mrb, class_qrng, "generate_password", mruby_qrng_generate_password, ARGS_REQ(2));
   sym_connected = mrb_intern(mrb, "connected");  // intentionally unprefixed
 }
