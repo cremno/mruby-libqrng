@@ -48,6 +48,14 @@ check_length(mrb_state *mrb, mrb_int length, mrb_int max)
 static mrb_value
 mruby_libqrng_initialize(mrb_state *mrb, mrb_value self)
 {
+  mruby_libqrng_connect(mrb, self);
+
+  return self;
+}
+
+static mrb_value
+mruby_libqrng_connect(mrb_state *mrb, mrb_value self)
+{
   mrb_value username;
   mrb_value password;
   mrb_value ssl;
@@ -65,25 +73,6 @@ mruby_libqrng_initialize(mrb_state *mrb, mrb_value self)
     mrb_yield(mrb, block, self);
     mruby_libqrng_disconnect(mrb, self);
   }
-
-  return self;
-}
-
-static mrb_value
-mruby_libqrng_connect(mrb_state *mrb, mrb_value self)
-{
-  mrb_value username;
-  mrb_value password;
-  mrb_value ssl;
-
-  if (mrb_get_args(mrb, "SS|o", &username, &password, &ssl) == 3 && mrb_test(ssl)) {
-    QRNG_CALL(qrng_connect_SSL(RSTRING_PTR(username), RSTRING_PTR(password)));
-    mrb_iv_set(mrb, self, sym_ssl, mrb_true_value());
-  } else {
-    QRNG_CALL(qrng_connect(RSTRING_PTR(username), RSTRING_PTR(password)));
-    mrb_iv_set(mrb, self, sym_ssl, mrb_false_value());
-  }
-  mrb_iv_set(mrb, self, sym_connected, mrb_true_value());
 
   return mrb_true_value();
 }

@@ -24,9 +24,9 @@ o = QRNG.new 'AzureDiamond', 'hunter2' do |qrng|
   puts ints
 end
 puts o.connected?  # => false
-o.connect 'AzureDiamond', 'hunter2', :ssl
-puts o.ssl?  # => true
-o.disconnect
+o.connect 'AzureDiamond', 'hunter2', :ssl do |qrng|
+  puts qrng.ssl?  # => true
+end
 ```
 
 # License

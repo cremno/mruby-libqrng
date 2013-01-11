@@ -2,4 +2,3 @@
 - Linux support (see Makefile in qrngdownload-Linux-XXBit.tar.gz)
 - has mruby a rb_ensure counterpart?
 - mruby_qrng_generate_password: allow only strings with (printable?) single byte characters?
-- call mruby_qrng_connect in mruby_qrng_initialize?
