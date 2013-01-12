@@ -8,11 +8,11 @@
 
 # Usage
 ```ruby
-qrng = QRNG.new 'AzureDiamond', 'hunter2', :ssl  # username, password, use ssl (optional)
+qrng = QRNG.new 'AzureDiamond', 'hunter2', true  # username, password, use ssl (optional)
 pw = qrng.password 13, 'ABCdef123'  # password_length, tobeused_password_chars (optional)
 puts pw  # => 2dBfCC123CfeC
 int = qrng.data :int  # byte (String), int (Fixnum), double (Float [between 0 and 1])
-puts int  # => 455379
+puts int  # => 2143097836
 int = qrng.data :int, 3
 puts int  # => [-984391892, 1743334411, -1048288211]
 qrng.disconnect
@@ -24,7 +24,7 @@ o = QRNG.new 'AzureDiamond', 'hunter2' do |qrng|
   puts ints
 end
 puts o.connected?  # => false
-o.connect 'AzureDiamond', 'hunter2', :ssl do |qrng|
+o.connect 'AzureDiamond', 'hunter2', true do |qrng|
   puts qrng.ssl?  # => true
 end
 ```

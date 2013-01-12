@@ -1,10 +1,11 @@
+#include <limits.h>
+#include <stdlib.h>
 #include <mruby.h>
 #include <mruby/array.h>
 #include <mruby/string.h>
 #include <mruby/variable.h>
 #include <libQRNG.h>
 
-static struct RClass *class_qrng;
 static struct RClass *class_qrngerror;
 
 static mrb_sym sym_connected;
@@ -14,8 +15,8 @@ static mrb_sym sym_int;
 static mrb_sym sym_double;
 //static mrb_sym sym_bytes;
 
-static mrb_value mruby_libqrng_connect();
-static mrb_value mruby_libqrng_disconnect();
+static mrb_value connect();
+static mrb_value disconnect();
 
 #define QRNG_CALL(f) do { \
   int i; \
@@ -31,11 +32,24 @@ static mrb_value mruby_libqrng_disconnect();
   do { \
     i = /*qrng_*/f(p, n, &received); \
     if (i != 0) { \
-      mrb_free(mrb, p); \
+      free(p); \
       mrb_raise(mrb, class_qrngerror, qrng_error_strings[i]); \
     } \
   } while (n != received); \
 } while (0)
+
+static inline void *
+allocn(mrb_state *mrb, size_t n, size_t typesize)
+{
+  void *buf;
+
+  buf = malloc(n * typesize);
+  if (!buf) {
+    mrb_raise(mrb, E_RUNTIME_ERROR, "failed to allocate memory");
+  }
+
+  return buf;
+}
 
 static inline void
 check_length(mrb_state *mrb, mrb_int length, mrb_int max)
@@ -46,22 +60,20 @@ check_length(mrb_state *mrb, mrb_int length, mrb_int max)
 }
 
 static mrb_value
-mruby_libqrng_initialize(mrb_state *mrb, mrb_value self)
+initialize(mrb_state *mrb, mrb_value self)
 {
-  mruby_libqrng_connect(mrb, self);
-
-  return self;
+  return connect(mrb, self);
 }
 
 static mrb_value
-mruby_libqrng_connect(mrb_state *mrb, mrb_value self)
+connect(mrb_state *mrb, mrb_value self)
 {
   mrb_value username;
   mrb_value password;
-  mrb_value ssl;
+  int ssl;  // bool
   mrb_value block;
 
-  if (mrb_get_args(mrb, "SS|o&", &username, &password, &ssl, &block) > 2 && mrb_test(ssl)) {
+  if (mrb_get_args(mrb, "SS|b&", &username, &password, &ssl, &block) > 2 && ssl) {
     QRNG_CALL(qrng_connect_SSL(RSTRING_PTR(username), RSTRING_PTR(password)));
     mrb_iv_set(mrb, self, sym_ssl, mrb_true_value());
   } else {
@@ -71,14 +83,14 @@ mruby_libqrng_connect(mrb_state *mrb, mrb_value self)
   mrb_iv_set(mrb, self, sym_connected, mrb_true_value());
   if (!mrb_nil_p(block)) {
     mrb_yield(mrb, block, self);
-    mruby_libqrng_disconnect(mrb, self);
+    disconnect(mrb, self);
   }
 
-  return mrb_true_value();
+  return self;
 }
 
 static mrb_value
-mruby_libqrng_disconnect(mrb_state *mrb, mrb_value self)
+disconnect(mrb_state *mrb, mrb_value self)
 {
   if (mrb_test(mrb_iv_get(mrb, self, sym_connected))) {
     qrng_disconnect();
@@ -91,19 +103,19 @@ mruby_libqrng_disconnect(mrb_state *mrb, mrb_value self)
 }
 
 static mrb_value
-mruby_libqrng_connected(mrb_state *mrb, mrb_value self)
+connected(mrb_state *mrb, mrb_value self)
 {
   return mrb_iv_get(mrb, self, sym_connected);
 }
 
 static mrb_value
-mruby_libqrng_ssl(mrb_state *mrb, mrb_value self)
+ssl(mrb_state *mrb, mrb_value self)
 {
   return mrb_iv_get(mrb, self, sym_ssl);
 }
 
 static mrb_value
-mruby_libqrng_data(mrb_state *mrb, mrb_value self)
+data(mrb_state *mrb, mrb_value self)
 {
   mrb_int size;
   mrb_sym type;
@@ -111,8 +123,10 @@ mruby_libqrng_data(mrb_state *mrb, mrb_value self)
   int in;  // counter and used when one int is requested
   void *buf;
   double dn;
+  struct RArray *ary;
 
   size = 1;
+  buf = NULL;
   mrb_get_args(mrb, "n|i", &type, &size);
   if (type == sym_byte) {
     if (size == 1) {
@@ -120,7 +134,7 @@ mruby_libqrng_data(mrb_state *mrb, mrb_value self)
       return mrb_str_new(mrb, (char*)&in, 1);
     }
     check_length(mrb, size, INT_MAX - 1);
-    buf = mrb_malloc(mrb, size);
+    buf = malloc(size);
     QRNG_CALL2(qrng_get_byte_array, buf, size);
     data = mrb_str_new(mrb, buf, size);
     //data = mrb_funcall_argv(mrb, data, sym_bytes, 0, NULL);
@@ -130,34 +144,38 @@ mruby_libqrng_data(mrb_state *mrb, mrb_value self)
       return mrb_fixnum_value(in);
     }
     check_length(mrb, size, INT_MAX / sizeof(int));
-    buf = mrb_malloc(mrb, size * sizeof(int));
+    buf = allocn(mrb, size, sizeof(int));
     QRNG_CALL2(qrng_get_int_array, buf, size);
     data = mrb_ary_new_capa(mrb, size);
+    ary = RARRAY(data);
     for (in = 0; in < size; ++in) {
-      mrb_ary_set(mrb, data, in, mrb_fixnum_value(((int *)buf)[in]));
+      ary->ptr[in] = mrb_fixnum_value(((int *)buf)[in]);
     }
+    ary->len = size;
   } else if (type == sym_double) {
     if (size == 1) {
       QRNG_CALL(qrng_get_double(&dn));
       return mrb_float_value(dn);
     }
     check_length(mrb, size, INT_MAX / sizeof(double));
-    buf = mrb_malloc(mrb, size * sizeof(double));
+    buf = allocn(mrb, size, sizeof(double));
     QRNG_CALL2(qrng_get_double_array, buf, size);
     data = mrb_ary_new_capa(mrb, size);
+    ary = RARRAY(data);
     for (in = 0; in < size; ++in) {
-      mrb_ary_set(mrb, data, in, mrb_float_value(((double *)buf)[in]));
+      ary->ptr[in] = mrb_float_value(((double *)buf)[in]);
     }
+    ary->len = size;
   } else {
-    mrb_raise(mrb, E_TYPE_ERROR, "invalid QRNG data type");
+    mrb_raise(mrb, E_TYPE_ERROR, "invalid data type");
   }
-  mrb_free(mrb, buf);
+  free(buf);
 
   return data;
 }
 
 static mrb_value
-mruby_libqrng_password(mrb_state *mrb, mrb_value self)
+password(mrb_state *mrb, mrb_value self)
 {
   mrb_int length;
   mrb_value chars;
@@ -177,18 +195,19 @@ mruby_libqrng_password(mrb_state *mrb, mrb_value self)
 void
 mrb_mruby_libqrng_gem_init(mrb_state* mrb)
 {
+  struct RClass *class_qrng;
+
   class_qrng = mrb_define_class(mrb, "QRNG", mrb->object_class);
   class_qrngerror = mrb_define_class_under(mrb, class_qrng, "QRNGError", mrb->eStandardError_class);
   mrb_define_const(mrb, class_qrng, "VERSION", mrb_str_new_cstr(mrb, qrng_libQRNG_version));
-  mrb_define_method(mrb, class_qrng, "initialize", mruby_libqrng_initialize, ARGS_REQ(2) | ARGS_OPT(1));
-  mrb_define_method(mrb, class_qrng, "connect", mruby_libqrng_connect, ARGS_REQ(2) | ARGS_OPT(1));
-  mrb_define_method(mrb, class_qrng, "disconnect", mruby_libqrng_disconnect, ARGS_NONE());
-  mrb_define_method(mrb, class_qrng, "connected?", mruby_libqrng_connected, ARGS_NONE());
-  mrb_define_method(mrb, class_qrng, "ssl?", mruby_libqrng_ssl, ARGS_NONE());
-  mrb_define_method(mrb, class_qrng, "data", mruby_libqrng_data, ARGS_REQ(1) | ARGS_OPT(1));
-  mrb_define_method(mrb, class_qrng, "[]", mruby_libqrng_data, ARGS_REQ(1) | ARGS_OPT(1));
-  mrb_define_method(mrb, class_qrng, "generate_password", mruby_libqrng_password, ARGS_REQ(1) | ARGS_OPT(1));
-  mrb_define_method(mrb, class_qrng, "password", mruby_libqrng_password, ARGS_REQ(1) | ARGS_OPT(1));
+  mrb_define_method(mrb, class_qrng, "initialize", initialize, ARGS_ANY());
+  mrb_define_method(mrb, class_qrng, "connect", connect, ARGS_REQ(2) | ARGS_OPT(2));
+  mrb_define_method(mrb, class_qrng, "disconnect", disconnect, ARGS_NONE());
+  mrb_define_method(mrb, class_qrng, "connected?", connected, ARGS_NONE());
+  mrb_define_method(mrb, class_qrng, "ssl?", ssl, ARGS_NONE());
+  mrb_define_method(mrb, class_qrng, "data", data, ARGS_REQ(1) | ARGS_OPT(1));
+  mrb_define_method(mrb, class_qrng, "[]", data, ARGS_REQ(1) | ARGS_OPT(1));
+  mrb_define_method(mrb, class_qrng, "password", password, ARGS_REQ(1) | ARGS_OPT(1));
   sym_connected = mrb_intern(mrb, "connected");
   sym_ssl = mrb_intern(mrb, "ssl");
   sym_byte = mrb_intern(mrb, "byte");
