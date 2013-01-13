@@ -18,6 +18,8 @@ static mrb_sym sym_double;
 static mrb_value connect();
 static mrb_value disconnect();
 
+#define ARY_MAX_SIZE (INT_MAX / sizeof(mrb_value))  // mruby/src/array.c
+
 #define QRNG_CALL(f) do { \
   int i; \
   i = /*qrng_*/f; \
@@ -27,23 +29,31 @@ static mrb_value disconnect();
 } while (0)
 
 #define QRNG_CALL2(f, p, n) do { \
+  void *pp; \
+  int to_be_read; \
   int received; \
   int i; \
+  pp = p; \
+  to_be_read = n; \
+  received = 0; \
   do { \
-    i = /*qrng_*/f(p, n, &received); \
+    i = /*qrng_*/f(pp, to_be_read, &received); \
     if (i != 0) { \
       free(p); \
       mrb_raise(mrb, class_qrngerror, qrng_error_strings[i]); \
     } \
-  } while (n != received); \
+    pp += received; \
+    to_be_read -= received; \
+  } while (to_be_read > 0); \
 } while (0)
 
+
 static inline void *
-allocn(mrb_state *mrb, size_t n, size_t typesize)
+alloc(mrb_state *mrb, size_t size)
 {
   void *buf;
 
-  buf = malloc(n * typesize);
+  buf = malloc(size);
   if (!buf) {
     mrb_raise(mrb, E_RUNTIME_ERROR, "failed to allocate memory");
   }
@@ -52,9 +62,9 @@ allocn(mrb_state *mrb, size_t n, size_t typesize)
 }
 
 static inline void
-check_length(mrb_state *mrb, mrb_int length, mrb_int max)
+check_length(mrb_state *mrb, mrb_int length, size_t max)
 {
-  if (length < 1 || length > max) {
+  if (length < 0 || length > max) {
     mrb_raise(mrb, class_qrngerror, "invalid length");
   }
 }
@@ -70,7 +80,7 @@ connect(mrb_state *mrb, mrb_value self)
 {
   mrb_value username;
   mrb_value password;
-  int ssl;  // bool
+  int ssl;
   mrb_value block;
 
   if (mrb_get_args(mrb, "SS|b&", &username, &password, &ssl, &block) > 2 && ssl) {
@@ -117,17 +127,18 @@ ssl(mrb_state *mrb, mrb_value self)
 static mrb_value
 data(mrb_state *mrb, mrb_value self)
 {
-  mrb_int size;
+  void *buf;
   mrb_sym type;
+  mrb_int size;
   mrb_value data;
   int in;  // counter and used when one int is requested
-  void *buf;
   double dn;
   struct RArray *ary;
 
-  size = 1;
   buf = NULL;
-  mrb_get_args(mrb, "n|i", &type, &size);
+  if (mrb_get_args(mrb, "n|i", &type, &size) == 1) {
+    size = 1;
+  }
   if (type == sym_byte) {
     if (size == 1) {
       QRNG_CALL(qrng_get_int(&in));
@@ -143,11 +154,11 @@ data(mrb_state *mrb, mrb_value self)
       QRNG_CALL(qrng_get_int(&in));
       return mrb_fixnum_value(in);
     }
-    check_length(mrb, size, INT_MAX / sizeof(int));
-    buf = allocn(mrb, size, sizeof(int));
+    check_length(mrb, size, ARY_MAX_SIZE);
+    buf = alloc(mrb, size * sizeof(int));
     QRNG_CALL2(qrng_get_int_array, buf, size);
     data = mrb_ary_new_capa(mrb, size);
-    ary = RARRAY(data);
+    ary = mrb_ary_ptr(data);
     for (in = 0; in < size; ++in) {
       ary->ptr[in] = mrb_fixnum_value(((int *)buf)[in]);
     }
@@ -157,11 +168,11 @@ data(mrb_state *mrb, mrb_value self)
       QRNG_CALL(qrng_get_double(&dn));
       return mrb_float_value(dn);
     }
-    check_length(mrb, size, INT_MAX / sizeof(double));
-    buf = allocn(mrb, size, sizeof(double));
+    check_length(mrb, size, ARY_MAX_SIZE);
+    buf = alloc(mrb, size * sizeof(double));
     QRNG_CALL2(qrng_get_double_array, buf, size);
     data = mrb_ary_new_capa(mrb, size);
-    ary = RARRAY(data);
+    ary = mrb_ary_ptr(data);
     for (in = 0; in < size; ++in) {
       ary->ptr[in] = mrb_float_value(((double *)buf)[in]);
     }

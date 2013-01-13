@@ -1,4 +1,3 @@
-- rewrite array download
 - Linux support (see Makefile in qrngdownload-Linux-XXBit.tar.gz)
 - has mruby a rb_ensure counterpart?
 - mruby_qrng_generate_password: allow only strings with (printable?) single byte characters?
