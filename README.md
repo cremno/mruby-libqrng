@@ -1,11 +1,16 @@
+mruby-libqrng
+=============
+An interface to libQRNG for mruby.
+
 # Prerequisites
 - register an account on <https://qrng.physik.hu-berlin.de>
 - download libQRNG from <https://qrng.physik.hu-berlin.de/download>
 - MinGW users: "ar rcs libQRNG.a libQRNG.lib" to convert the import library
-- setup your compiler's search directories (build_config.rb):
+- setup your compiler's search directories (in build_config.rb):
+
 ```ruby
-conf.cflags << '-I/path/to/libQRNG'
-conf.ldflags << '-L/path/to/libQRNG'
+conf.cflags << '-I"/path/to/libQRNG"'
+conf.ldflags << '-L"/path/to/libQRNG"'
 ```
 
 # Installation
@@ -25,8 +30,8 @@ qrng.disconnect
 q = QRNG.new 'AzureDiamond', 'hunter2' do |qrng|
   puts qrng.connected?  # => true
   puts qrng.ssl? # => false
-  ints = qrng[:double, 0xffff]
-  puts ints  # => numbers, numbers everywhere
+  floats = qrng[:double, 0xffff]
+  puts floats  # => numbers, numbers everywhere
 end
 puts q.connected?  # => false
 ```
