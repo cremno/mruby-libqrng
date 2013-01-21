@@ -210,7 +210,7 @@ mrb_mruby_libqrng_gem_init(mrb_state* mrb)
 
   class_qrng = mrb_define_class(mrb, "QRNG", mrb->object_class);
   class_qrngerror = mrb_define_class_under(mrb, class_qrng, "QRNGError", mrb->eStandardError_class);
-  mrb_define_const(mrb, class_qrng, "VERSION", mrb_str_new_cstr(mrb, qrng_libQRNG_version));
+  //mrb_define_const(mrb, class_qrng, "VERSION", mrb_str_new_cstr(mrb, qrng_libQRNG_version));
   mrb_define_method(mrb, class_qrng, "initialize", initialize, ARGS_ANY());
   mrb_define_method(mrb, class_qrng, "connect", connect, ARGS_REQ(2) | ARGS_OPT(2));
   mrb_define_method(mrb, class_qrng, "disconnect", disconnect, ARGS_NONE());
